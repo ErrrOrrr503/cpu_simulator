@@ -1,0 +1,5 @@
+push 2
+push X0
+mul
+pop X0
+out X0

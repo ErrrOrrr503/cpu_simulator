@@ -1,0 +1,22 @@
+in X0
+push 1
+push X0
+sum
+pop X0
+push 1
+//cycle while, ineffective
+label a:
+l0 b: //for (; X0 > 0; --X0)
+jmp c:
+label b:
+	//code
+	push X0
+	/*comment
+	works*
+	mul
+	//end of code
+jmp a:
+label c:
+pop X0
+out X0
+
