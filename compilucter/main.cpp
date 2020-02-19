@@ -9,7 +9,6 @@
 
 const char* DEF_OUT_NAME = "a.prg";
 const size_t DEF_LEXEM_MAS_SIZE = 100;
-const size_t DEF_FUNC_MAS_SIZE = 100;
 const size_t DEF_LABEL_MAS_SIZE = 100;
 const size_t DEF_OUT_CAPACITY = 100;
 
@@ -43,10 +42,6 @@ struct label_res {
     size_t out_num;
 };
 
-struct func {
-    char* name;
-};
-
 class Compilucter {
 public:
     const char *delim = "\t \n";
@@ -64,11 +59,6 @@ public:
     void check_labels_resolver ();
     size_t labels_resolver_size;
     size_t cur_labels_resolver;
-
-    struct func *func_resolver;
-    void check_func_resolver ();
-    size_t func_resolver_size;
-    size_t cur_func_resolver;
 
     int argc;
     char **argv;
@@ -152,14 +142,6 @@ int Compilucter::init (int argc_in, char **argv_in)
         this->labels_resolver[i] = {};
     }
 
-    this->func_resolver = NULL;
-    this->func_resolver = new struct func[DEF_LABEL_MAS_SIZE];
-    this->func_resolver_size = DEF_FUNC_MAS_SIZE;
-    this->cur_func_resolver = 0;
-    for (size_t i = 0; i < DEF_FUNC_MAS_SIZE; i++) {
-        this->func_resolver[i] = {};
-    }
-
     return 0;
 }
 
@@ -171,7 +153,6 @@ int Compilucter::destroy ()
     delete[] this->label_mas;
     delete[] this->out_mas;
     delete[] this->labels_resolver;
-    delete[] this->func_resolver;
     fclose (this->out);
     return 0;
 }
@@ -301,6 +282,7 @@ int Compilucter::parse ()
             this->check_lexem_mas ();
             is_correct = 1;
         }
+
         if (!strcmp (tmp, "label")) {
             char *tmp_old = tmp;
             tmp = strtok (NULL, this->delim);
@@ -312,27 +294,6 @@ int Compilucter::parse ()
             else {
                 this->lexem_mas[this->cur_lexem].cmd = 0x00;
                 this->lexem_mas[this->cur_lexem].flag = LABEL;
-                this->lexem_mas[this->cur_lexem].val.int_n = 0;
-                this->lexem_mas[this->cur_lexem].origin = tmp_old;
-                this->lexem_mas[this->cur_lexem].reg = 0x00;
-                this->lexem_mas[this->cur_lexem].label_name = tmp;
-                this->cur_lexem++;
-                this->check_lexem_mas ();
-                is_correct = 1;
-            }
-        }
-
-        if (!strcmp (tmp, "function")) {
-            char *tmp_old = tmp;
-            tmp = strtok (NULL, this->delim);
-            if (tmp == NULL) {
-                this->error_handle (tmp_old, tmp_old, "Function needs name!");
-                lexically_correct = 0;
-                return 0;
-            }
-            else {
-                this->lexem_mas[this->cur_lexem].cmd = 0x00;
-                this->lexem_mas[this->cur_lexem].flag = FUNCTION;
                 this->lexem_mas[this->cur_lexem].val.int_n = 0;
                 this->lexem_mas[this->cur_lexem].origin = tmp_old;
                 this->lexem_mas[this->cur_lexem].reg = 0x00;
@@ -420,6 +381,10 @@ CMD_T Compilucter::is_cmd (char* str)
     if (!strcmp (str, "mul")) return MUL;
     if (!strcmp (str, "div")) return DIV;
     if (!strcmp (str, "end")) return S_S;
+    if (!strcmp (str, "set_addr")) return SET_RAM_ADDR;
+    if (!strcmp (str, "get_addr")) return GET_RAM_ADDR;
+    if (!strcmp (str, "ram_push")) return RAM_PUSH;
+    if (!strcmp (str, "ram_pop")) return RAM_POP;
     return 0x00;
 }
 
@@ -524,11 +489,41 @@ int Compilucter::compile ()
                     }
                 }
                 break;
+            case RAM_PUSH :
+                this->out_push (RAM_PUSH);
+                i++;
+                if (this->lexem_mas[i].flag != REG && this->lexem_mas[i].flag != INUM) {
+                    this->error_handle (this->lexem_mas[i-1].origin, this->lexem_mas[i].origin, "\"ram_push\" requires number or registry as an argument.");
+                    is_correct = 0;
+                }
+                else {
+                    if (this->lexem_mas[i].flag == INUM) {
+                        this->out_push (INUM);
+                        for (size_t j = 0; j < NUM_SIZE; j++)
+                            this->out_push (this->lexem_mas[i].val.bin[j]);
+                    }
+                    if (this->lexem_mas[i].flag == REG) {
+                        this->out_push (REG);
+                        this->out_push (this->lexem_mas[i].reg);
+                    }
+                }
+                break;
             case POP :
                 this->out_push (POP);
                 i++;
                 if (this->lexem_mas[i].flag != REG) {
                     this->error_handle (this->lexem_mas[i-1].origin, this->lexem_mas[i].origin, "\"pop\" requires registry as an argument.");
+                    is_correct = 0;
+                }
+                else {
+                    this->out_push (this->lexem_mas[i].reg);
+                }
+                break;
+            case RAM_POP :
+                this->out_push (RAM_POP);
+                i++;
+                if (this->lexem_mas[i].flag != REG) {
+                    this->error_handle (this->lexem_mas[i-1].origin, this->lexem_mas[i].origin, "\"ram_pop\" requires registry as an argument.");
                     is_correct = 0;
                 }
                 else {
@@ -572,6 +567,36 @@ int Compilucter::compile ()
             case S_S:
                 this->out_push (S_S);
                 break;
+            case SET_RAM_ADDR:
+                this->out_push (SET_RAM_ADDR);
+                i++;
+                if (this->lexem_mas[i].flag != REG && this->lexem_mas[i].flag != INUM) {
+                    this->error_handle (this->lexem_mas[i-1].origin, this->lexem_mas[i].origin, "\"set_addr\" requires number or registry as an argument.");
+                    is_correct = 0;
+                }
+                else {
+                    if (this->lexem_mas[i].flag == INUM) {
+                        this->out_push (INUM);
+                        for (size_t j = 0; j < NUM_SIZE; j++)
+                            this->out_push (this->lexem_mas[i].val.bin[j]);
+                    }
+                    if (this->lexem_mas[i].flag == REG) {
+                        this->out_push (REG);
+                        this->out_push (this->lexem_mas[i].reg);
+                    }
+                }
+                break;
+            case GET_RAM_ADDR:
+                this->out_push (GET_RAM_ADDR);
+                i++;
+                if (this->lexem_mas[i].flag != REG) {
+                    this->error_handle (this->lexem_mas[i-1].origin, this->lexem_mas[i].origin, "\"get-addr\" requires registry as an argument.");
+                    is_correct = 0;
+                }
+                else {
+                    this->out_push (this->lexem_mas[i].reg);
+                }
+                break;
             case L0:
                 this->out_push (L0);
                 this->labels_resolver[this->cur_labels_resolver].lex_num = i;
@@ -600,7 +625,7 @@ int Compilucter::compile ()
                     this->out_push (0);
                 break;
             default:
-                std::cout << "What a FUCK motherfucker cyka blyat!?" << std::endl;
+                std::cout << "What!?" << std::endl;
                 is_correct = 0;
                 break;
             }
@@ -620,9 +645,6 @@ int Compilucter::compile ()
             this->label_mas[this->cur_label].place = this->out_size;
             this->cur_label++;
             this->check_label_mas ();
-        }
-        if (this->lexem_mas[i].flag == FUNCTION) {
-
         }
     }
     for (size_t h = 0; h < this->cur_labels_resolver; h++) {
@@ -713,24 +735,6 @@ void Compilucter::check_labels_resolver()
         memcpy (this->labels_resolver, old, this->cur_labels_resolver * sizeof (struct label_res));
         for (size_t i = this->cur_labels_resolver; i < this->labels_resolver_size; i++) {
             this->labels_resolver[i] = {};
-        }
-        delete[] old;
-        return;
-    }
-    return;
-}
-
-//////////////////////////////////////////////////////////////////FUCNTIONS//////////////////////////////////
-
-void Compilucter::check_func_resolver()
-{
-    if (this->cur_func_resolver >= this->func_resolver_size) {
-        struct func *old = this->func_resolver;
-        this->func_resolver_size *= 2;
-        this->func_resolver = new struct func[this->func_resolver_size];
-        memcpy (this->func_resolver, old, this->cur_func_resolver * sizeof (struct func));
-        for (size_t i = this->cur_func_resolver; i < this->func_resolver_size; i++) {
-            this->func_resolver[i] = {};
         }
         delete[] old;
         return;

@@ -1,7 +1,7 @@
 #ifndef TABLES_H_INCLUDED
 #define TABLES_H_INCLUDED
 
-const size_t RAM_SIZE = 655360L;
+const size_t RAM_SIZE = 65536L;
 
 const size_t NUM_SIZE = sizeof (int64_t);
 
@@ -11,6 +11,8 @@ typedef uint8_t CMD_T;
 C_CMD_T PUSH = 0x0E;
 C_CMD_T RAM_PUSH = 0xA0;
 C_CMD_T RAM_POP = 0xA1;
+C_CMD_T SET_RAM_ADDR = 0xA2;
+C_CMD_T GET_RAM_ADDR = 0xA3;
 C_CMD_T IN = 0x0D;
 C_CMD_T OUT = 0x0C;
 C_CMD_T POP = 0x1B;

@@ -1,0 +1,1 @@
+/home/errrorrr/cpp/compilucter/bin/Debug/a.prg

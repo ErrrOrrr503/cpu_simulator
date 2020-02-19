@@ -38,7 +38,8 @@ public:
     value RXD = {};
     value RXE = {};
     value RXF = {};
-    const uint8_t *RAM;
+    value *RAM;
+    int64_t cur_ram_addr;
 
     Stack St;
     int argc;
@@ -78,9 +79,10 @@ int Processor::init (int argc_in, char **argv_in)
         return is_opened;
     }
     this->RAM = NULL;
-    this->RAM = new uint8_t[RAM_SIZE];
+    this->RAM = new value[RAM_SIZE / sizeof (value)];
     this->St.init ();
     this->assm_ptr = 0;
+    this->cur_ram_addr = 0;
     return 0;
 }
 
@@ -142,6 +144,32 @@ int Processor::exec ()
         value* p_val = NULL;
         value a = {}, b = {};
         switch (this->assm[this->assm_ptr]) {
+        case RAM_PUSH:
+            this->assm_ptr += 1;
+            switch (this->assm[this->assm_ptr]) {
+            case REG:
+                this->assm_ptr += 1;
+                p_val = this->find_reg(this->assm[this->assm_ptr]);
+                if (p_val != NULL) {
+                    this->RAM[this->cur_ram_addr] = *p_val;
+                    this->cur_ram_addr++;
+                }
+                else {
+                    std::cout << ERROR << "@ram_push-bad-reg_num" << std::endl;
+                    return 1;
+                }
+                break;
+            case INUM:
+                memcpy (val.bin, &this->assm[this->assm_ptr + 1], NUM_SIZE * sizeof (uint8_t));
+                this->assm_ptr += NUM_SIZE;
+                this->RAM[this->cur_ram_addr] = val;
+                this->cur_ram_addr++;
+                break;
+            default:
+                std::cout << ERROR << "@ram_push-bad-flag" << std::endl;
+                return 1;
+            }
+            break;
         case PUSH:
             this->assm_ptr += 1;
             switch (this->assm[this->assm_ptr]) {
@@ -157,7 +185,6 @@ int Processor::exec ()
                 break;
             case INUM:
                 memcpy (val.bin, &this->assm[this->assm_ptr + 1], NUM_SIZE * sizeof (uint8_t));
-                //std::cout << "push_inum " << val.int_n << std::endl;
                 this->assm_ptr += NUM_SIZE;
                 this->St.push (val);
                 break;
@@ -177,6 +204,65 @@ int Processor::exec ()
             }
             else {
                 std::cout << ERROR << "@pop-bad-reg_num" << std::endl;
+                return 1;
+            }
+            break;
+        case RAM_POP:
+            this->assm_ptr += 1;
+            p_val = this->find_reg(this->assm[this->assm_ptr]);
+            if (p_val != NULL) {
+                if (this->cur_ram_addr < 1 || this->cur_ram_addr > RAM_SIZE + 1) {
+                    std::cout << ERROR << "@ram_pop-bad_addr (not in range)" << std::endl;
+                    return 1;
+                }
+                *p_val = this->RAM[this->cur_ram_addr - 1];
+            }
+            else {
+                std::cout << ERROR << "@ram_pop-bad-reg_num" << std::endl;
+                return 1;
+            }
+            this->cur_ram_addr--;
+            break;
+        case SET_RAM_ADDR:
+            this->assm_ptr += 1;
+            switch (this->assm[this->assm_ptr]) {
+            case REG:
+                this->assm_ptr += 1;
+                p_val = this->find_reg(this->assm[this->assm_ptr]);
+                if (p_val != NULL) {
+                    this->cur_ram_addr = p_val->int_n;
+                    if (this->cur_ram_addr < 0 || this->cur_ram_addr > RAM_SIZE) {
+                        std::cout << ERROR << "@set_addr-bad_addr (not in range)" << std::endl;
+                        return 1;
+                    }
+                }
+                else {
+                    std::cout << ERROR << "@set_addr-bad-reg_num" << std::endl;
+                    return 1;
+                }
+                break;
+            case INUM:
+                memcpy (val.bin, &this->assm[this->assm_ptr + 1], NUM_SIZE * sizeof (uint8_t));
+                this->assm_ptr += NUM_SIZE;
+                this->cur_ram_addr = val.int_n;
+                if (this->cur_ram_addr < 0 || this->cur_ram_addr > RAM_SIZE) {
+                    std::cout << ERROR << "@set_addr-bad_addr (not in range)" << std::endl;
+                    return 1;
+                }
+                break;
+            default:
+                std::cout << ERROR << "@set_addr-bad-flag" << std::endl;
+                return 1;
+            }
+            break;
+        case GET_RAM_ADDR:
+            this->assm_ptr += 1;
+            p_val = this->find_reg(this->assm[this->assm_ptr]);
+            if (p_val != NULL) {
+                p_val->int_n = this->cur_ram_addr;
+            }
+            else {
+                std::cout << ERROR << "@get_addr-bad-reg_num" << std::endl;
                 return 1;
             }
             break;

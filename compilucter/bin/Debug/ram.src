@@ -1,0 +1,17 @@
+in X0
+ram_push 2
+ram_push X0
+get_addr X1
+out X1
+set_addr 1000
+get_addr X3
+out X3
+set_addr X1
+ram_pop X2
+push X2
+ram_pop X2
+push X2
+mul
+pop X2
+out X2
+end
